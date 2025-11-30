@@ -1,0 +1,53 @@
+
+
+# fog-server.py
+from flask import Flask, request, Response # Import Response
+import joblib
+from datetime import datetime
+import json # <--- IMPORT THE NATIVE PYTHON JSON LIBRARY
+
+app = Flask(__name__)
+# ... (rest of the file remains the same until the report function)
+ALERT_THRESHOLD = -0.1
+
+@app.route('/report', methods=['POST'])
+def report():
+    data = request.get_json()
+    src_ip = data['src_ip']
+    ports = data['unique_ports']
+    duration = data['duration']
+
+    # 1. Get the raw prediction score (NumPy float)
+    score_array = model.decision_function([[ports, duration]])[0]
+
+    # 2. Convert the NumPy score to a standard Python float
+    score = float(score_array)
+
+    # 3. Calculate the anomaly status (native Python bool)
+    is_anomaly = bool(score < ALERT_THRESHOLD)
+
+    if is_anomaly:
+        print(f"\n🚨 FOG ALERT [{datetime.now().strftime('%H:%M:%S')}]")
+        print(f" Source: {src_ip} | Ports: {ports} | Durée: {duration:.2f}s\n")
+
+    # --- THE FIX IS HERE: USE RAW JSON SERIALIZATION ---
+    response_data = {
+        "alert": is_anomaly,
+        "score": score
+    }
+    
+    # Use json.dumps() to manually serialize the dictionary to a string, 
+    # and then wrap it in a Flask Response object.
+    json_response = json.dumps(response_data)
+    
+    # Return the response with the correct MIME type
+    return Response(
+        json_response,
+        mimetype='application/json'
+    )
+    # --- END FIX ---
+
+if __name__ == "__main__":
+    print("📡 Nœud Fog démarré sur http://192.168.1.130:5000")
+    app.run(host='0.0.0.0', port=5000)
+
